@@ -8,6 +8,7 @@ MACHINEGUN=False
 SHIMMER = True
 sound=True
 
+
 ROCKMASS=4
 SHIPMASS=1
 
@@ -27,8 +28,8 @@ captions=['''Hello! You have nearly died, and so I will try to distract you from
  mortality! I hate your shoes.''', 'Scud. Scud. SCUD.', '''By the way, if you do get us killed, be warned that I intend
  to haunt you.''', '''By the way, if you do get us killed, be warned that I intend
  to haunt you.''', 'Resigned sigh.']
-openingmsg=['You are a member of the DDF at a very crucial time in the galaxy. The', 'Department of Protective \
-Services in the Superiority has secretly summoned', 'a DELVER.', '', 'While your friend, Spensa Nightshade, tries to communicate with \
+openingmsg=['You are a member of the DDF at a crucial time in the galaxy. The Department', 'of Protective \
+Services in the Superiority has secretly summoned a DELVER.', '', 'While your friend, Spensa Nightshade, tries to communicate with \
 the delver', 'and convince it to return to the nowhere, you have just discovered the', 'Department head WINZIK commanding a small \
 battleship nearby. Your', 'mission is to destroy Winzik\'s ship and rid the galaxy of the menace he poses.',\
 '', 'But be careful! The battleship is protected by a shield too strong to be', 'damaged much by your destructors. And though the Superiority \
@@ -47,25 +48,25 @@ part2=['To move:                                   Move your cursor in relation 
 'To adjust light-lance angle of fire:       Use the scroll wheel on your mouse.',\
 'To fire light-lance:                       Right-click.',\
 'To start game:                             Left-click.',\
+'To pause game:                             Press SHIFT.',\
 'To return to this screen:                  Press SHIFT.',\
 'To respawn:                                Press ENTER.',\
 'To restart completely:                     Press "R".',\
-'To exit this screen:                       Press the right arrow key.',\
 'To turn sound on/off:                      Press "S".']
-os.environ['SDL_VIDEO_WINDOW_POS']='%d,%d' %(4, 30)
+os.environ['SDL_VIDEO_WINDOW_POS']='0, 30'
 if FULLSCREEN: scrsize=[1274, 952]
-else: scrsize=[1100, 850]
+else: scrsize=[1100, 750]
 window=pygame.display.set_mode((scrsize[0], scrsize[1]))
 pygame.display.set_caption(captions[random.randint(0,4)])
 
 os.chdir("assets")
 wilhelm=pygame.mixer.Sound('wilhelm.wav')
 explosionsfx=pygame.mixer.Sound('explosion.wav')
-destructorsound=pygame.mixer.Sound('laser.wav')
+destructorsound=pygame.mixer.Sound('laser.mp3')
 rockbreak=pygame.mixer.Sound('rockbreak.wav')
 LLfiringsound=pygame.mixer.Sound('LLfire.wav')
 LLattachsound=pygame.mixer.Sound('LLattached.wav')
-krellshotsound=pygame.mixer.Sound('krellshot.wav')
+krellshotsound=pygame.mixer.Sound('krellshot.mp3')
 intro = pygame.mixer.Sound('intro.wav')
 musicloop = pygame.mixer.Sound('rush e.wav')
 e = pygame.mixer.Sound('e.wav')
@@ -140,7 +141,8 @@ def chooseship():
     drawtext('Press P for a Poco.', littlefont, window, (280, 500), WHITE)
     pygame.display.update()
     done=False
-    while done==False:
+    while not done:
+        pygame.display.update()
         for thisevent in pygame.event.get():
             if thisevent.type==pygame.KEYDOWN:
                 if thisevent.key==pygame.K_p:
@@ -164,14 +166,16 @@ if SHIPTYPE==POCO:
     sensitivity = 6.67
     collisionvects=[[-12, -9], [0.0,-10.0], [-7, -3], [25.0,0.0], [-7, 3], [0.0,10.0], [-12, 9], [-19.0,20.0], [-22.0,19.0], [-23.0,0.0], [-22.0,-19.0], [-19.0,-20.0]]
 newcollisionvects=collisionvects.copy()
-exploding=False
+shipVisible = True
 frames=0
 clock=pygame.time.Clock()
-destructors=[]
-explosions=[]
-explosions2=[]
+explosions=set([])
+explosions2=set([])
+destructors=set([])
+destructorsToCull = 0
+
 side=1
-gamepause=True
+screenNum=0
 
 LLattached, LLactive, LLlength, LLvector, directionfired, LLtip, LLangle = False, False, 1, [0, 0], None, pos.copy(), 0
 
@@ -196,6 +200,7 @@ class explosion:
         self.radius=30
         self.is_ship=is_ship
         self.source=source
+        self.markedForRemoval = False
 
 class meteor:
     def reset(self):
@@ -211,7 +216,7 @@ class meteor:
         self.veloc=scalrmult([math.cos(angle), math.sin(angle)], self.speed)
         self.was_in_krellarea=False
         self.beenspeared=False
-        self.overlap=False
+       # self.overlap=False
     def __init__(self):
         self.reset()
 
@@ -231,8 +236,8 @@ class destructor:
         else: shift=scalrmult(self.direction, 20)
         self.pos1=vectsum(pos, scalrmult(self.direction, 4), shift)
         self.pos2=self.pos1
-        if collisionkrell(self.pos1, 0): self.can_hit_krell=False
-        else: self.can_hit_krell=True
+        self.can_hit_krell = not collisionkrell(self.pos1, 0)
+        self.markedForRemoval = False
         side*=-1
 
 class krell:
@@ -254,68 +259,59 @@ class krelldestructor:
         self.pos1=[725, 390]
         self.pos2=self.pos1.copy()
 
-def primetoshoot():
-    global frames
-    if frames%2==1:
-        direc=1
-    else: direc=-1
-    r=1
-    while r!=0:
-        frames=frames+direc
-        r=frames%13
+def primetoshoot(): # Machine gun shoots every 13th frame; this changes the frame number so that the first shot is fired immediately
+    global frames, excessframes
+    round_up = frames%2 # coin flip to see whether we move the frame counter up or down
+    frames = (frames // 13 + round_up) * 13
+
 
 def events():
-    global mouse, veloc, brake, start, respawn, alive, stopshoot, LLactive, LLangle,\
-framessincearrow, gamepause, restart, sound, framessincesound
+    global mouse, brake, start, respawn, alive, stopshoot, LLactive, LLangle,\
+framessincearrow, screenNum, restart, sound, framessincesound
     for thisevent in pygame.event.get():
         if thisevent.type==pygame.MOUSEMOTION:
             mouse=[thisevent.pos[0], thisevent.pos[1]]
-        if thisevent.type==pygame.QUIT:
+        elif thisevent.type==pygame.QUIT:
             pygame.quit()
             sys.exit()
-        if thisevent.type==pygame.KEYDOWN:
+        elif thisevent.type==pygame.KEYDOWN:
             if thisevent.key==pygame.K_SLASH and alive and start:
                 if MACHINEGUN:
                     primetoshoot()
                     stopshoot=False
                 else:
-                    destructors.append(destructor())
-                    if SHIPTYPE==MBOT: destructors.append(destructor())
+                    destructors.add(destructor())
+                    if SHIPTYPE==MBOT: destructors.add(destructor())
                     if sound: destructorsound.play()
-            if thisevent.key==pygame.K_SPACE: brake=True
-            if thisevent.key==pygame.K_RETURN and (not alive or not krell.life): respawn=True
-            if thisevent.key==pygame.K_r: restart=True
-            if thisevent.key in [pygame.K_RSHIFT, pygame.K_LSHIFT]:
-                gamepause=True
+            elif thisevent.key==pygame.K_SPACE: brake=True
+            elif thisevent.key==pygame.K_RETURN and (not alive or not krell.life): respawn=True
+            elif thisevent.key==pygame.K_r: restart=True
+            elif thisevent.key in [pygame.K_RSHIFT, pygame.K_LSHIFT]:
+                screenNum=1
                 musicchannel.pause()
-            if thisevent.key==pygame.K_s:
-                if sound==True:
-                    sound=False
+            elif thisevent.key==pygame.K_s:
+                if sound:
                     musicchannel.pause()
                 else:
-                    sound=True
                     if alive: musicchannel.unpause()
+                sound = not sound
                 framessincesound=0
-        if thisevent.type==pygame.KEYUP:
+        elif thisevent.type==pygame.KEYUP:
             if thisevent.key==pygame.K_SLASH: stopshoot=True
-            if thisevent.key==pygame.K_SPACE: brake=False
-            if thisevent.key==pygame.K_e and alive and SHIPTYPE!=POCO: death(False)
-        if thisevent.type==pygame.MOUSEBUTTONDOWN:
+            elif thisevent.key==pygame.K_SPACE: brake=False
+            elif thisevent.key==pygame.K_e and alive and SHIPTYPE!=POCO: death(False)
+        elif thisevent.type==pygame.MOUSEBUTTONDOWN:
             if thisevent.button==1: start=True
-            if thisevent.button==3 and alive and start:
-                if LLactive==True: LLactive=False
-                else:
-                    LLactive=True
+            elif thisevent.button==3 and alive and start:
+                if not LLactive:
                     if sound: LLfiringsound.play()
-            if thisevent.button==4:
+                LLactive = not LLactive
+            elif thisevent.button==4:
                 LLangle+=45
                 framessincearrow=0
-            if thisevent.button==5:
+            elif thisevent.button==5:
                 LLangle-=45
                 framessincearrow=0
-
-def intrd(x):
-    return int(round(x))
 #'''
 
 def lineintersection(m1, b1, m2, b2):
@@ -479,7 +475,7 @@ def quadraticsolve(a, b, c):
     return ((-b+root)/(2*a), (-b-root)/(2*a))
 
 def screenpos(vector):
-    return (intrd(vector[0]), intrd(vector[1]))
+    return (round(vector[0]), round(vector[1]))
 
 def brakeon():
     global accel, veloc
@@ -504,7 +500,7 @@ def deathtext():
 
 def end():
     global done, bestscore
-    if MACHINEGUN==False and FULLSCREEN==False: legit=True
+    if not MACHINEGUN and not FULLSCREEN: legit=True
     else: legit=False
     scorefile=shelve.open('starsight bestscore')
     bestscore=scorefile['bestscore']
@@ -514,26 +510,48 @@ def end():
     done=True
 
 def explode():
-    global pos, veloc, explosions
-    for expl in explosions+explosions2:
-        if expl!=None:
-            expl.radius+=expl.rate
-            expl.rate*=expl.multiplier
-            if expl.rate<0.24:
-                if expl.source!=None: expl.source.life=False
-                if expl.is_ship:
-                    pygame.display.update()
-                    pos=[-1500, 0]
-                    end()
-                if expl in explosions: explosions.remove(expl)
-                else: explosions2.remove(expl)
+    global pos, veloc, explosions, shipVisible
+    explosionsToCull = [0, 0]
+    expl_sets = [explosions, explosions2];
+
+    for i in (0, 1):
+        for expl in expl_sets[i]:
+            if expl!=None:
+                expl.radius+=expl.rate
+                expl.rate*=expl.multiplier
+                if expl.rate<0.24:
+                    if expl.source!=None: expl.source.life=False
+                    if expl.is_ship:
+                        shipVisible = False
+                        end()
+                    expl.markedForRemoval = True
+                    explosionsToCull[i] += 1
+
+    for i in (0, 1):
+        while explosionsToCull[i]:
+            for expl in expl_sets[i]:
+                if expl.markedForRemoval:
+                    expl_sets[i].remove(expl)
+                    explosionsToCull[i] -= 1
+                    break
 
 def destructormove():
+    global destructorsToCull
     for this in destructors:
         this.pos1=vectsum(this.pos1, this.veloc)
         this.pos2=vectsum(this.pos1, scalrmult(this.direction, this.LENGTH))
         if this.pos1[0]>2000 or this.pos1[0]<-1050 or this.pos1[1]>1900 or this.pos1[1]<-1050:
-            destructors.remove(this)
+            if not this.markedForRemoval: # If it has already been marked for removal, then we shouldn't increment the cull counter again!
+                destructorsToCull += 1
+            this.markedForRemoval = True
+
+    while destructorsToCull:
+        for this in destructors:
+            if this.markedForRemoval:
+                destructors.remove(this)
+                destructorsToCull -= 1
+                break
+   
 
 def updategraphics():
     global rotationangle, shieldrect
@@ -548,49 +566,60 @@ def updategraphics():
         shield = shieldimg
     if framessincearrow<110 and alive: window.blit(arrow, arrow.get_rect(center=screenpos(pos)))
     if LLactive: pygame.draw.line(window, LLRED, screenpos(pos), screenpos(LLtip), 2)
-    width=intrd(magn(accel)*4000)
+    width=round(magn(accel)*4000)
     flamenew=pygame.transform.scale(flame, (width, 10))
     if width!=0: flamenew=pygame.transform.rotate(flamenew, -angledeg)
     shipnew=pygame.transform.rotate(ship, -angledeg)
     if krellshot!=None:
         pygame.draw.line(window, DESTRUCTORYELLOW, screenpos(krellshot.pos1), screenpos(krellshot.pos2), 6)
-    window.blit(shipnew, shipnew.get_rect(center=(intrd(pos[0]), intrd(pos[1]))))
-
+    if shipVisible:
+        window.blit(shipnew, shipnew.get_rect(center=(round(pos[0]), round(pos[1]))))
+#    print(pos)
 #    for i in range(len(newcollisionvects)):
  #       point = newcollisionvects[i]
   #      if i != len(newcollisionvects) - 1: nextpoint = newcollisionvects[i+1]
    #     else: nextpoint = newcollisionvects[0]
-    #    pygame.draw.circle(window, RED, (intrd(point[0] + pos[0]), intrd(point[1] + pos[1])), 1)
-     #   pygame.draw.line(window, RED, (intrd(point[0] + pos[0]), intrd(point[1] + pos[1])), (intrd(nextpoint[0] + pos[0]), intrd(nextpoint[1] + pos[1])), 1)
-    #pygame.draw.circle(window, GREEN, (intrd(pos[0]), intrd(pos[1])), 35, 1)
+    #    pygame.draw.circle(window, RED, (round(point[0] + pos[0]), round(point[1] + pos[1])), 1)
+     #   pygame.draw.line(window, RED, (round(point[0] + pos[0]), round(point[1] + pos[1])), (round(nextpoint[0] + pos[0]), round(nextpoint[1] + pos[1])), 1)
+    #pygame.draw.circle(window, GREEN, (round(pos[0]), round(pos[1])), 35, 1)
 
 
     for this in destructors:
         pygame.draw.line(window, DESTRUCTORYELLOW, screenpos(this.pos1), screenpos(this.pos2), 3)
     if SHIPTYPE==POCO: back=29
     if SHIPTYPE==MBOT: back=24
-    flamepos=(intrd(pos[0] - back*math.cos(anglerad)) ,  intrd(pos[1] - back*math.sin(anglerad)))
+    flamepos=(round(pos[0] - back*math.cos(anglerad)) ,  round(pos[1] - back*math.sin(anglerad)))
     if alive: window.blit(flamenew, flamenew.get_rect(center=flamepos))
     for meteor in obstacles:
         if meteor.life and not meteor.offscreen: window.blit(rockimage, rockimage.get_rect(center=screenpos(meteor.pos)))
     for expl in explosions2:
         r, p = expl.radius, expl.pos
-        explosion=pygame.transform.scale(explosionimage, (intrd(r), intrd(r)))
+        explosion=pygame.transform.scale(explosionimage, (round(r), round(r)))
         window.blit(explosion, explosion.get_rect(center=(p[0], p[1])))
     if krell.shield>0 and SHIMMER:
         window.blit(shield2, shieldrect)
     window.blit(krellimg, krellrect)
     if krell.shield>0:
         window.blit(shield, shieldrect)
-    if accel!=[0, 0]: steeringarrow=pygame.transform.scale(arrowimg, (intrd(magn(accel)*20000), 13))
-    if accel!=[0, 0]: steeringarrow=pygame.transform.rotate(steeringarrow, -angledeg)
-    if accel!=[0, 0] and brake==False: window.blit(steeringarrow, steeringarrow.get_rect(center=(scrsize[0]/2, scrsize[1]/2)))
+    if accel!=[0, 0] and not brake:
+        steeringarrow=pygame.transform.scale(arrowimg, (round(magn(accel)*20000), 13))
+        steeringarrow=pygame.transform.rotate(steeringarrow, -angledeg)
+        window.blit(steeringarrow, steeringarrow.get_rect(center=(scrsize[0]/2, scrsize[1]/2)))
     pygame.draw.circle(window, WHITE, (int(scrsize[0]/2), int(scrsize[1]/2)), 5)
     pygame.draw.circle(window, BLACK, (int(scrsize[0]/2), int(scrsize[1]/2)), 1)
+    krellsplosion = None
     for expl in explosions:
+        if expl.source == krell:
+            krellsplosion = expl
+            continue
         r, p = expl.radius, expl.pos
-        explosion=pygame.transform.scale(explosionimage, (intrd(r), intrd(r)))
+        explosion=pygame.transform.scale(explosionimage, (round(r), round(r)))
         window.blit(explosion, explosion.get_rect(center=(p[0], p[1])))
+    if krellsplosion != None:
+        r, p = krellsplosion.radius, krellsplosion.pos
+        explosion=pygame.transform.scale(explosionimage, (round(r), round(r)))
+        window.blit(explosion, explosion.get_rect(center=(p[0], p[1])))
+    
     if krell.shield>0: status='Krell shield: '+str(math.ceil(krell.shield))
     else: status='Krell ship health: '+str(math.ceil(krell.health))
     drawtext(status, pygame.font.SysFont('courier', 20, True), window, (70, 50), RED)
@@ -599,7 +628,7 @@ def updategraphics():
             megaphone=soundonimg
         else: megaphone=soundoffimg
         window.blit(megaphone, megaphone.get_rect(center=(520, 440)))
-    if done or krell.life==False: deathtext()
+    if done or not krell.life: deathtext()
     pygame.display.update()
 
 def collisionship():
@@ -616,7 +645,7 @@ def collisionship():
                 relative_veloc=vectdiff(veloc, meteor.veloc)
                 if distance<40:
                     impactforce=scalrproject(relative_veloc, vectdiff(meteor.pos, pos))
-                    if impactforce>.82 and prev_rock_overlap==False and alive:
+                    if impactforce>.82 and not prev_rock_overlap and alive:
                         if sound: wilhelmchannel.play(wilhelm)
                         return True
                     rock_overlap=True
@@ -627,7 +656,7 @@ def collisionship():
         if collisionkrell(spot, 0):
             impactforce=scalrproject(veloc, vectdiff([725, 390], pos))
             krell_overlap=True
-            if impactforce>.82 and prev_krell_overlap==False and alive:
+            if impactforce>.82 and not prev_krell_overlap and alive:
                 if krell.shield>0: krell.shield-=(impactforce-.82)*SHIPMASS*25/ROCKMASS
                 else: krell.health-=(impactforce-.82)*SHIPMASS*25/ROCKMASS
                 if sound: wilhelmchannel.play(wilhelm)
@@ -648,7 +677,7 @@ def collisionship():
     return False
 
 def collisionkrell(point, radius):
-    if krell.life==False: return False
+    if not krell.life: return False
     if krell.shield>0:
         if magn(vectdiff(point, [690, 390]))<150+radius: return True
     else:
@@ -663,20 +692,23 @@ def collisionkrell(point, radius):
         return False
 
 def destructor_hit_rock():
+    global destructorsToCull
     for meteor in obstacles:
         if meteor.breaking: meteor.countdown-=1
         if meteor.countdown==0:
             meteor.life=False
             if sound: rockbreak.play()
-            explosions2.append(explosion(meteor.pos, duration=1, rate=20))
+            explosions2.add(explosion(meteor.pos, duration=1, rate=20))
         if meteor.life:
             for shot in destructors:
-                if magn(vectdiff(shot.pos1, meteor.pos))<40 and not meteor.offscreen:
+                if magn(vectdiff(shot.pos1, meteor.pos))<40:
                     meteor.breaking=True
-                    destructors.remove(shot)
-            if krellshot!=None and magn(vectdiff(krellshot.pos1, meteor.pos))<40 and not meteor.offscreen:
+                    if not shot.markedForRemoval: # If it has already been marked for removal, then we shouldn't increment the cull counter again!
+                        destructorsToCull += 1
+                    shot.markedForRemoval = True
+            if krellshot!=None and distpointlinesegm(meteor.pos, krellshot.pos1, krellshot.pos2)<40 and not meteor.offscreen:
                 if sound: rockbreak.play()
-                explosions2.append(explosion(meteor.pos, duration=1, rate=20))
+                explosions2.add(explosion(meteor.pos, duration=1, rate=20))
                 meteor.life=False
 
 def moverocks():
@@ -684,20 +716,21 @@ def moverocks():
     for rock in obstacles:
         rock.pos=vectsum(rock.pos, rock.veloc)
         rock.offscreen=rock.pos[0]>scrsize[0]+40 or rock.pos[0]<-40 or rock.pos[1]>scrsize[1]+40 or rock.pos[1]<-40
-        rock.overlap=518<rock.pos[0]<876 and 238<rock.pos[1]<542
+       # rock.overlap=518<rock.pos[0]<876 and 238<rock.pos[1]<542
         rock.distance+=rock.speed
         if rock.distance>500 and rock.offscreen and spearedrock!=rock: rock.reset()
 
 def newgame(complete=False):
-    global exploding, done, pos, veloc, accel, start, respawn, alive, LLangle, destructors, \
+    global shipVisible, done, pos, veloc, accel, start, respawn, alive, LLangle, destructors, \
 LLactive, explosions, restart, crashes, krellshot, untilkrellshoots, explosions2, firstmusicloop, \
 background, MACHINEGUN
-    exploding=False
+    shipVisible = True
     done=False
     pos=[scrsize[0]/2-200, scrsize[1]/2]
-    explosions=[]
-    explosions2=[]
-    destructors=[]
+    explosions.clear()
+    explosions2.clear()
+    destructorsToCull = 0
+    destructors.clear()
     veloc=[0, 0]
     accel=[0, 0]
     start=False
@@ -709,7 +742,7 @@ background, MACHINEGUN
     untilkrellshoots=400
     if complete: MACHINEGUN = False
     obstaclelist()
-    if krell.exploding: krell.life=False
+    #if krell.exploding: krell.life=False
     if complete: background = backgrounds[random.randint(0, len(backgrounds) - 1)]
     if complete or not krell.life:
         krell.reset()
@@ -737,9 +770,9 @@ def anglecalculations():
 
 def manageframes():
     global frames, start, obstacles, destructors, framessincearrow, untilkrellshoots, beginning, framessincesound
-    if frames%13==0 and stopshoot==False and alive and start:
-        destructors.append(destructor())
-        if SHIPTYPE==MBOT: destructors.append(destructor())
+    if frames%13==0 and not stopshoot and alive and start:
+        destructors.add(destructor())
+        if SHIPTYPE==MBOT: destructors.add(destructor())
         if sound: destructorsound.play()
     frames+=1
     if magn(veloc)<0.07 and start and alive and not krell.exploding: untilkrellshoots-=1
@@ -829,11 +862,11 @@ def managekrell():
     for rock in obstacles:
         if rock.life and collisionkrell(rock.pos, 40):
             impactforce=scalrproject(rock.veloc, vectdiff([725, 390], rock.pos))
-            if rock.was_in_krellarea==False and impactforce>.82:
+            if not rock.was_in_krellarea and impactforce>.82:
                 damage=(impactforce-.82)*150
                 if krell.shield<=0: krell.health-=damage
                 else: krell.shield-=damage
-                explosions.append(explosion(get_explsn_point(rock), source=rock))
+                explosions.add(explosion(get_explsn_point(rock), source=rock))
                 rock.veloc=[0, 0]
                 LLactive=False
                 if damage>tophits['besthit']:
@@ -841,8 +874,8 @@ def managekrell():
                     print('New record: most damaging hit! '+str(tophits['besthit']))
             rock.was_in_krellarea=True
         else: rock.was_in_krellarea=False
-    if krell.health<=0 and krell.exploding==False:
-        explosions.append(explosion([725, 390], rate=20, source=krell))
+    if krell.health<=0 and not krell.exploding:
+        explosions.add(explosion([725, 390], rate=20, source=krell))
         krell.exploding=True
     if untilkrellshoots==0:
         if sound: wilhelmchannel.play(wilhelm)
@@ -861,7 +894,7 @@ def managekrell():
 
 def stringphysics():
     global LLtip, spearedrock, LLactive, LLlength
-    if spearedrock.life==False:
+    if not spearedrock.life:
         LLactive=False
         return
     LLtip=spearedrock.pos
@@ -874,15 +907,18 @@ def death(hit_krell):
     alive=False
     veloc=[0, 0]
     accel=[0, 0]
-    if not hit_krell: explosions2.append(explosion(pos, is_ship=True))
-    else: explosions.append(explosion(pos, is_ship=True))
+    if not hit_krell: explosions2.add(explosion(pos, is_ship=True))
+    else: explosions.add(explosion(pos, is_ship=True))
     LLactive=False
     crashes+=1
 
 def destructor_hit_krell():
+    global destructorsToCull
     for shot in destructors:
         if shot.can_hit_krell and collisionkrell(shot.pos1, 0):
-            destructors.remove(shot)
+            if not shot.markedForRemoval: # If it has already been marked for removal, then we shouldn't increment the cull counter again!
+                destructorsToCull += 1
+            shot.markedForRemoval = True
             if krell.shield>0:
                 if SHIPTYPE==MBOT: krell.shield-=.2
                 else: krell.shield-=.4
@@ -894,38 +930,39 @@ def get_explsn_point(meteor):
     return vectsum(scalrmult(unit(vectdiff([725, 390], meteor.pos)), 40), meteor.pos)
 
 def startloop():
-    global gamepause, MACHINEGUN, done
+    global screenNum, MACHINEGUN, done
     openingfont=pygame.font.SysFont(None, 28)
     window.fill(BLACK)
     newlogo=pygame.transform.smoothscale(logo, (250, 72))
     window.blit(newlogo, newlogo.get_rect(center=(550, 45)))
-    for i in range(len(openingmsg)):
-        drawtext(openingmsg[i], openingfont, window, (170, 85+26*i), GREEN)
-    newfont=pygame.font.SysFont('couriernew', 16, True)
-    for i in range(len(part2)):
-        drawtext(part2[i], newfont, window, (120, 580+17*i), WHITE)
+    newfont=pygame.font.SysFont('couriernew', 18, True)
     pygame.display.update()
-    while gamepause:
+    while screenNum < 2:
+        pygame.draw.rect(window, BLACK, pygame.Rect(-1, 120, scrsize[0], scrsize[1]))
+        if screenNum == 1:
+            for i in range(len(part2)):
+                drawtext(part2[i], newfont, window, (40, 200+22*i), WHITE)
+        else:
+            for i in range(len(openingmsg)):
+                drawtext(openingmsg[i], openingfont, window, (170, 140+26*i), GREEN)
+        drawtext("Press the right arrow key to continue", openingfont, window, [378, 650], WHITE)
+        pygame.display.update()
         for thisevent in pygame.event.get():
             if thisevent.type==pygame.KEYDOWN:
                 if thisevent.key==pygame.K_RIGHT:
-                    gamepause=False
-                    if sound: musicchannel.unpause()
-                if thisevent.key==pygame.K_SLASH:
+                    screenNum += 1
+                elif thisevent.key==pygame.K_LEFT and screenNum > 0:
+                    screenNum -= 1
+                elif thisevent.key==pygame.K_SLASH:
                     MACHINEGUN=True
-            if thisevent.type==pygame.QUIT:
+            elif thisevent.type==pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+    if sound: musicchannel.unpause()
 
 def endloop():
-    while restart==False and respawn==False:
-        events()
-    
-def togglesilence():
-    global musicsilent
-    if musicsilent: musicsilent = False
-    else: musicsilent = True
-    
+    while not restart and not respawn:
+        events()    
 
 obstaclelist()
 krell=krell()
@@ -937,7 +974,7 @@ while True:
     if not (musicchannel.get_busy()) and sound:
         musicchannel.play(musicloop)
         if not firstmusicloop:
-            togglesilence()
+            musicsilent = not musicsilent
             if musicsilent and krell.life and not krell.exploding:
                 musicchannel.play(silence)
                 e.play()
@@ -948,7 +985,7 @@ while True:
     hit=collisionship()
     managekrell()
     if hit and alive: death(hit==2)
-    if krell.life==False:
+    if not krell.life:
         end()
         endloop()
     if respawn: newgame()
@@ -958,11 +995,12 @@ while True:
     if start: moverocks()
     anglecalculations()
     events()
-    if gamepause: startloop()
+    if screenNum < 2: startloop()
     destructor_hit_rock()
     lightlancing()
-    if frames%3!=0: updategraphics()
-    if frames%3==0: clock.tick(58)
-    #if frames%100==0:
-     #   print(time.time() - mark)
-      #  mark = time.time()
+    if frames%3!=0:
+        updategraphics()
+    else: clock.tick(58)
+ #   if frames%1000==0:
+  #      print(time.time() - mark)
+   #     mark = time.time()
