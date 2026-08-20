@@ -3,7 +3,6 @@ import pygame, os, sys, math, random, shelve, time
 pygame.init()
 #This program does not use NumPy.
 
-FULLSCREEN=False
 MACHINEGUN=False
 SHIMMER = True
 sound=True
@@ -54,18 +53,18 @@ part2=['To move:                                   Move your cursor in relation 
 'To restart completely:                     Press "R".',\
 'To turn sound on/off:                      Press "S".']
 os.environ['SDL_VIDEO_WINDOW_POS']='0, 30'
-if FULLSCREEN: scrsize=[1274, 952]
-else: scrsize=[1100, 750]
+
+scrsize=[1100, 750]
 window=pygame.display.set_mode((scrsize[0], scrsize[1]))
 pygame.display.set_caption(captions[random.randint(0,4)])
 
 os.chdir("assets")
-wilhelm=pygame.mixer.Sound('wilhelm.wav')
-explosionsfx=pygame.mixer.Sound('explosion.wav')
+wilhelm=pygame.mixer.Sound('wilhelm.mp3')
+explosionsfx=pygame.mixer.Sound('explosion.mp3')
 destructorsound=pygame.mixer.Sound('laser.mp3')
-rockbreak=pygame.mixer.Sound('rockbreak.wav')
-LLfiringsound=pygame.mixer.Sound('LLfire.wav')
-LLattachsound=pygame.mixer.Sound('LLattached.wav')
+rockbreak=pygame.mixer.Sound('rockbreak.mp3')
+LLfiringsound=pygame.mixer.Sound('LLfire.mp3')
+LLattachsound=pygame.mixer.Sound('LLattached.mp3')
 krellshotsound=pygame.mixer.Sound('krellshot.mp3')
 intro = pygame.mixer.Sound('intro.wav')
 musicloop = pygame.mixer.Sound('rush e.wav')
@@ -312,7 +311,6 @@ framessincearrow, screenNum, restart, sound, framessincesound
             elif thisevent.button==5:
                 LLangle-=45
                 framessincearrow=0
-#'''
 
 def lineintersection(m1, b1, m2, b2):
     if round(m1 - m2, 7) == 0:
@@ -500,11 +498,10 @@ def deathtext():
 
 def end():
     global done, bestscore
-    if not MACHINEGUN and not FULLSCREEN: legit=True
-    else: legit=False
     scorefile=shelve.open('starsight bestscore')
     bestscore=scorefile['bestscore']
-    if ((not krell.life) or krell.exploding) and crashes<bestscore and legit: scorefile['bestscore']=crashes
+    if ((not krell.life) or krell.exploding) and crashes<bestscore and not MACHINEGUN:
+        scorefile['bestscore']=crashes
     scorefile.close()
     deathtext()
     done=True
