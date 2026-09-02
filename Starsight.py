@@ -8,6 +8,8 @@ sound = True
 
 ROCKMASS = 4
 SHIPMASS = 1
+KRELL_CENTER = (733, 390)
+SHIELD_CENTER = (690, 390)
 
 PUCE = (120, 40, 60)
 RED = (255, 0, 0)
@@ -92,10 +94,10 @@ soundonimg = pygame.image.load('sound_on.png').convert_alpha()
 soundoffimg = pygame.image.load('sound_off.png').convert_alpha()
 krellimg = pygame.image.load('krell.png').convert_alpha()
 krellimg = pygame.transform.smoothscale(krellimg, (500, 250))
-krellrect = krellimg.get_rect(center = (600, 390))
+krellrect = krellimg.get_rect(center = (600, 392))
 if SHIMMER: shieldimg = pygame.image.load('bubble.png').convert_alpha()
 else: shieldimg = pygame.image.load('bubble2.png').convert_alpha()
-shieldrect = shieldimg.get_rect(center = (690, 390))
+shieldrect = shieldimg.get_rect(center = SHIELD_CENTER)
 logo = pygame.image.load('logo.png').convert_alpha()
 logo = pygame.transform.smoothscale(logo, (875, 252))
 logorect = logo.get_rect(center = (scrsize[0] / 2, scrsize[1] / 2))
@@ -199,7 +201,6 @@ class meteor:
         angle += random.random() * PI - PI / 2
         self.veloc = scalrmult([math.cos(angle), math.sin(angle)], self.speed)
         self.was_in_krellarea = False
-       # self.overlap = False
     def __init__(self):
         self.reset()
 
@@ -225,9 +226,9 @@ class destructor:
 
 class krell:
     def reset(self):
-        self.collisionPoints = [[669, 472], [669, 304]]
+        self.collisionPoints = [[669, 473], [669, 305]]
         self.health = 100
-        self.shield = 900
+        self.shield = 0
         self.life = True
         self.exploding = False
     def __init__(self):
@@ -239,14 +240,13 @@ class krelldestructor:
         self.direction = direction
         self.end1_dist = 1
         self.end2_dist = 1
-        self.pos1 = [725, 390]
+        self.pos1 = [KRELL_CENTER[0], KRELL_CENTER[1]]
         self.pos2 = self.pos1.copy()
 
 def primetoshoot(): # Machine gun shoots every 13th frame; this changes the frame number so that the first shot is fired immediately
     global frames, excessframes
     round_up = frames % 2 # coin flip to see whether we move the frame counter up or down
     frames = (frames // 13 + round_up) * 13
-
 
 def events():
     global mouse, brake, start, respawn, alive, stopshoot, LLactive, LLangle,\
@@ -298,8 +298,8 @@ framessincearrow, screenNum, restart, sound, framessincesound
 
 def resetVars(complete = False):
     global shipVisible, showDeathText, pos, veloc, accel, start, respawn, alive, destructors, \
-LLactive, explosions, restart, crashes, krellshot, untilkrellshoots, explosions2, firstmusicloop, \
-background, destructorsToCull, musicsilent, MACHINEGUN
+LLactive, explosions, restart, crashes, krellshot, untilkrellshoots, impactCenter, explosions2, \
+firstmusicloop, background, destructorsToCull, musicsilent, MACHINEGUN
     musicsilent = False
     shipVisible = True
     showDeathText = False
@@ -324,6 +324,7 @@ background, destructorsToCull, musicsilent, MACHINEGUN
     if complete or not krell.life:
         krell.reset()
         crashes = 0
+        impactCenter = SHIELD_CENTER
         if sound: musicchannel.play(intro)
         firstmusicloop = True
     else:
@@ -369,7 +370,6 @@ def linesegmentsintersect(begin1, end1, begin2, end2):
                 return True
             else:
                 return False
-    
 
     if line1[0] != float('inf'): coord = 0
     else: coord = 1
@@ -378,14 +378,12 @@ def linesegmentsintersect(begin1, end1, begin2, end2):
     isonline1 = (line1coordincreases and intersectpoint[coord] >= begin1[coord] and intersectpoint[coord] <= end1[coord]) or \
                 (not line1coordincreases and intersectpoint[coord] <= begin1[coord] and intersectpoint[coord] >= end1[coord])
 
-
     if line2[0] != float('inf'): coord = 0
     else: coord = 1
 
     line2coordincreases = end2[coord] >= begin2[coord]    
     isonline2 = (line2coordincreases and intersectpoint[coord] >= begin2[coord] and intersectpoint[coord] <= end2[coord]) or \
                 (not line2coordincreases and intersectpoint[coord] <= begin2[coord] and intersectpoint[coord] >= end2[coord])
-
 
     return isonline1 and isonline2
 
@@ -403,7 +401,6 @@ def distpointlinesegm(point, beginpoint, endpoint):
     else:
         perplinem = float('inf')
         perplineb = point[0]
-    
 
     intersect = lineintersection(line[0], line[1], perplinem, perplineb)
 
@@ -426,8 +423,7 @@ def distpointlinesegm(point, beginpoint, endpoint):
             else: closestpoint = endpoint
 
     return magn(vectdiff(closestpoint, point))
-'''
-#'''
+
 def vectsum(vect1, vect2, vect3 = None):
     summ = []
     pos = 0
@@ -576,10 +572,11 @@ def updategraphics():
     global shieldRotationAngle, shieldrect
     shieldRotationAngle += 3
     window.blit(background, backg_rect)
+    window.fill(WHITE)
     if framessincearrow < 110: arrow = pygame.transform.rotate(arrowimg, LLangle - shipAngleDeg)
     if SHIMMER:
         shield = pygame.transform.rotate(shieldimg, shieldRotationAngle)
-        shieldrect = shield.get_rect(center = (690, 390))
+        shieldrect = shield.get_rect(center = SHIELD_CENTER)
         shield2 = pygame.transform.rotate(shieldimg, -shieldRotationAngle)
     else:
         shield = shieldimg
@@ -602,7 +599,6 @@ def updategraphics():
      #   pygame.draw.line(window, RED, (round(point[0] + pos[0]), round(point[1] + pos[1])), (round(nextpoint[0] + pos[0]), round(nextpoint[1] + pos[1])), 1)
     #pygame.draw.circle(window, GREEN, (round(pos[0]), round(pos[1])), 35, 1)
 
-
     for this in destructors:
         pygame.draw.line(window, DESTRUCTORYELLOW, screenpos(this.pos1), screenpos(this.pos2), 3)
     if SHIPTYPE == POCO: back = 29
@@ -622,8 +618,18 @@ def updategraphics():
         steeringarrow = pygame.transform.scale(arrowimg, (round(magn(accel) * 20000), 13))
         steeringarrow = pygame.transform.rotate(steeringarrow, -shipAngleDeg)
         window.blit(steeringarrow, steeringarrow.get_rect(center = (scrsize[0] / 2, scrsize[1] / 2)))
-    pygame.draw.circle(window, WHITE, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 5)
-    pygame.draw.circle(window, BLACK, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 1)
+#    pygame.draw.circle(window, WHITE, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 5)
+ #   pygame.draw.circle(window, BLACK, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 1)
+  #  pygame.draw.circle(window, RED, (751, 389.5), 82.5, 1)
+    #pygame.draw.circle(window, GREEN, (748, 390), 85, 1)
+   # pygame.draw.circle(window, RED, (748, 389.5), 116, 2)
+    #pygame.draw.line(window, RED, (0, 305), (900, 305),2)
+#    pygame.draw.line(window, RED, (0, 474), (900, 474),2)
+ #   pygame.draw.line(window, RED, (669, 0), (669, 800),2)
+  #  pygame.draw.line(window, RED, (748, 0), (748, 800),2)
+    if (collisionkrell(mouse,0)): pygame.draw.circle(window, RED, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 10)
+    print(mouse)
+    ## 669, 748
     krellsplosion = None
     for expl in explosions:
         if expl.source == krell:
@@ -667,17 +673,16 @@ def collisionship():
     for point in rotatedCollisionPoints:
         spot = vectsum(pos, point)
         if collisionkrell(spot, 0):
-            impactforce = scalrproject(veloc, vectdiff([725, 390], pos))
+            impactforce = scalrproject(veloc, vectdiff(impactCenter, pos))
             krell_overlap = True
             if impactforce > .82 and not prev_krell_overlap and alive:
-                if krell.shield > 0: krell.shield -= (impactforce - .82) * SHIPMASS * 25 / ROCKMASS
+                if krell.shield > 0: weakenShield((impactforce - .82) * SHIPMASS * 25 / ROCKMASS)
                 else: krell.health -= (impactforce - .82) * SHIPMASS * 25 / ROCKMASS
                 if sound: wilhelmchannel.play(wilhelm)
                 return 2
 
     if krellshot != None:
         disttokrellshot = distpointlinesegm(pos, krellshot.pos1, krellshot.pos2)
-        #print(disttokrellshot)
         if disttokrellshot <= 35:
             for i in range(len(rotatedCollisionPoints)):
                 point = rotatedCollisionPoints[i]
@@ -690,13 +695,13 @@ def collisionship():
 def collisionkrell(point, radius):
     if not krell.life: return False
     if krell.shield > 0:
-        if magn(vectdiff(point, [690, 390])) < 150 + radius: return True
+        if magn(vectdiff(point, SHIELD_CENTER)) < 150 + radius: return True
     else:
         if 626 - radius < point[0] < 839 + radius and 298 - radius < point[1] < 478 + radius:
             if 669 < point[0] < 748:
-                if 304 - radius < point[1] < 472 + radius: return True
-            elif point[0] <= 644 and magn(vectdiff([748, 389], point)) < 116 + radius: return True
-            elif point[0] >= 748 and magn(vectdiff([748, 389], point)) < 85 + radius: return True
+                if 305 - radius < point[1] < 474 + radius: return True
+            elif point[0] <= 644 and magn(vectdiff([748, 389.5], point)) < 116 + radius: return True
+            elif point[0] >= 748 and magn(vectdiff([751, 389.5], point)) < 82.5 + radius: return True
             elif radius == 40:
                 for vect in krell.collisionPoints:
                     if magn(vectdiff(vect, point)) < 40: return True
@@ -727,7 +732,6 @@ def moverocks():
     for rock in obstacles:
         rock.pos = vectsum(rock.pos, rock.veloc)
         rock.offscreen = rock.pos[0] > scrsize[0] + 40 or rock.pos[0] < -40 or rock.pos[1] > scrsize[1] + 40 or rock.pos[1] < -40
-       # rock.overlap = 518 < rock.pos[0] < 876 and 238 < rock.pos[1] < 542
         rock.distance += rock.speed
         if rock.distance > 500 and rock.offscreen and spearedrock != rock: rock.reset()
 
@@ -838,11 +842,11 @@ def managekrell():
     if krell.health < 0: krell.health = 0
     for rock in obstacles:
         if rock.life and collisionkrell(rock.pos, 40):
-            impactforce = scalrproject(rock.veloc, vectdiff([725, 390], rock.pos))
+            impactforce = scalrproject(rock.veloc, vectdiff(impactCenter, rock.pos))
             if not rock.was_in_krellarea and impactforce > .82:
                 damage = (impactforce - .82) * 150
                 if krell.shield <= 0: krell.health -= damage
-                else: krell.shield -= damage
+                else: weakenShield(damage)
                 explosions.add(explosion(get_explsn_point(rock), source = rock))
                 rock.veloc = [0, 0]
                 LLactive = False
@@ -852,19 +856,18 @@ def managekrell():
             rock.was_in_krellarea = True
         else: rock.was_in_krellarea = False
     if krell.health <= 0 and not krell.exploding:
-        explosions.add(explosion([725, 390], rate = 20, source = krell))
+        explosions.add(explosion(KRELL_CENTER, rate = 20, source = krell))
         krell.exploding = True
     if untilkrellshoots == 0:
         if sound: wilhelmchannel.play(wilhelm)
-        global diff
-        diff = vectdiff(pos, [725, 390])
+        diff = vectdiff(pos, KRELL_CENTER)
         krellshot = krelldestructor(unit(diff))
     if untilkrellshoots < 0:
         krellshot.end1_dist += 18
-        krellshot.pos1 = vectsum(scalrmult(krellshot.direction, krellshot.end1_dist), [725, 390])
+        krellshot.pos1 = vectsum(scalrmult(krellshot.direction, krellshot.end1_dist), KRELL_CENTER)
         if krellshot.end1_dist > 900:
             krellshot.end2_dist += 18
-            krellshot.pos2 = vectsum(scalrmult(krellshot.direction, krellshot.end2_dist), [725, 390])
+            krellshot.pos2 = vectsum(scalrmult(krellshot.direction, krellshot.end2_dist), KRELL_CENTER)
         if krellshot.end2_dist > 860:
             krellshot = None
             untilkrellshoots = 400
@@ -889,6 +892,13 @@ def death(hit_krell):
     LLactive = False
     crashes += 1
 
+def weakenShield(amount):
+    global impactCenter
+    krell.shield -= amount
+    if krell.shield <= 0:
+        krell.shield = 0
+        impactCenter = KRELL_CENTER
+
 def destructor_hit_krell():
     global destructorsToCull
     for shot in destructors:
@@ -897,14 +907,14 @@ def destructor_hit_krell():
                 destructorsToCull += 1
             shot.markedForRemoval = True
             if krell.shield > 0:
-                if SHIPTYPE == MBOT: krell.shield -= .2
-                else: krell.shield -= .4
+                if SHIPTYPE == MBOT: weakenShield(.2)
+                else: weakenShield(.4)
             else:
                 if SHIPTYPE == MBOT: krell.health -= .2
                 else: krell.health -= .4
 
 def get_explsn_point(meteor):
-    return vectsum(scalrmult(unit(vectdiff([725, 390], meteor.pos)), 40), meteor.pos)
+    return vectsum(scalrmult(unit(vectdiff(impactCenter, meteor.pos)), 40), meteor.pos)
 
 def startloop():
     global screenNum, MACHINEGUN, showDeathText
