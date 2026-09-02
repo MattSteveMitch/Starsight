@@ -94,7 +94,7 @@ soundonimg = pygame.image.load('sound_on.png').convert_alpha()
 soundoffimg = pygame.image.load('sound_off.png').convert_alpha()
 krellimg = pygame.image.load('krell.png').convert_alpha()
 krellimg = pygame.transform.smoothscale(krellimg, (500, 250))
-krellrect = krellimg.get_rect(center = (600, 392))
+krellrect = krellimg.get_rect(center = (600, 391))
 if SHIMMER: shieldimg = pygame.image.load('bubble.png').convert_alpha()
 else: shieldimg = pygame.image.load('bubble2.png').convert_alpha()
 shieldrect = shieldimg.get_rect(center = SHIELD_CENTER)
@@ -226,9 +226,8 @@ class destructor:
 
 class krell:
     def reset(self):
-        self.collisionPoints = [[669, 473], [669, 305]]
         self.health = 100
-        self.shield = 0
+        self.shield = 900
         self.life = True
         self.exploding = False
     def __init__(self):
@@ -572,7 +571,6 @@ def updategraphics():
     global shieldRotationAngle, shieldrect
     shieldRotationAngle += 3
     window.blit(background, backg_rect)
-    window.fill(WHITE)
     if framessincearrow < 110: arrow = pygame.transform.rotate(arrowimg, LLangle - shipAngleDeg)
     if SHIMMER:
         shield = pygame.transform.rotate(shieldimg, shieldRotationAngle)
@@ -618,18 +616,8 @@ def updategraphics():
         steeringarrow = pygame.transform.scale(arrowimg, (round(magn(accel) * 20000), 13))
         steeringarrow = pygame.transform.rotate(steeringarrow, -shipAngleDeg)
         window.blit(steeringarrow, steeringarrow.get_rect(center = (scrsize[0] / 2, scrsize[1] / 2)))
-#    pygame.draw.circle(window, WHITE, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 5)
- #   pygame.draw.circle(window, BLACK, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 1)
-  #  pygame.draw.circle(window, RED, (751, 389.5), 82.5, 1)
-    #pygame.draw.circle(window, GREEN, (748, 390), 85, 1)
-   # pygame.draw.circle(window, RED, (748, 389.5), 116, 2)
-    #pygame.draw.line(window, RED, (0, 305), (900, 305),2)
-#    pygame.draw.line(window, RED, (0, 474), (900, 474),2)
- #   pygame.draw.line(window, RED, (669, 0), (669, 800),2)
-  #  pygame.draw.line(window, RED, (748, 0), (748, 800),2)
-    if (collisionkrell(mouse,0)): pygame.draw.circle(window, RED, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 10)
-    print(mouse)
-    ## 669, 748
+    pygame.draw.circle(window, WHITE, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 5)
+    pygame.draw.circle(window, BLACK, (int(scrsize[0] / 2), int(scrsize[1] / 2)), 1)
     krellsplosion = None
     for expl in explosions:
         if expl.source == krell:
@@ -697,14 +685,10 @@ def collisionkrell(point, radius):
     if krell.shield > 0:
         if magn(vectdiff(point, SHIELD_CENTER)) < 150 + radius: return True
     else:
-        if 626 - radius < point[0] < 839 + radius and 298 - radius < point[1] < 478 + radius:
-            if 669 < point[0] < 748:
-                if 305 - radius < point[1] < 474 + radius: return True
-            elif point[0] <= 644 and magn(vectdiff([748, 389.5], point)) < 116 + radius: return True
+        if 626 - radius < point[0] < 839 + radius and 305 - radius < point[1] < 474 + radius:
+            if 669 < point[0] < 748: return True
+            elif point[0] <= 669 and magn(vectdiff([748, 389.5], point)) < 116 + radius: return True
             elif point[0] >= 748 and magn(vectdiff([751, 389.5], point)) < 82.5 + radius: return True
-            elif radius == 40:
-                for vect in krell.collisionPoints:
-                    if magn(vectdiff(vect, point)) < 40: return True
         return False
 
 def destructor_hit_rock():
